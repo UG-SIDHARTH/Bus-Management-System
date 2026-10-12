@@ -41,7 +41,6 @@ services:
       DB_USER: root
       DB_PASSWORD: "root@6069"
       PORT: 6969
-      RESOLUTION: "1280x800x24"
     ports:
       - "6969:6969"
     depends_on:

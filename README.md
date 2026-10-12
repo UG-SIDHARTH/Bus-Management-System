@@ -1,21 +1,23 @@
 # Bus Management & Reservation System
 
-A complete Java Swing desktop application integrated with MySQL JDBC for managing buses, passengers, seat reservations, and ticket generation.
+A complete 100% pure Java Web Application integrated with MySQL JDBC for managing buses, passengers, seat reservations, and printing official boarding passes.
 
 ---
 
 ## 🛠️ Tech Stack & Architecture
 
-- **Language:** Java (JDK 21+)
-- **GUI Framework:** Java Swing (`JFrame`, `JTable`, `JPanel`, `CardLayout`/`BorderLayout`)
-- **Database:** MySQL Server 8.0+
+- **Language:** Java (JDK 21+) — *100% Pure Java, zero external web frameworks!*
+- **Web Server:** Standard Java Embedded HTTP Server (`com.sun.net.httpserver.HttpServer`)
+- **Port:** `6969`
+- **Database:** MySQL Server 8.0+ (Port `3307`)
 - **Database Driver:** `mysql-connector-j-26.7.0.jar`
 - **Architecture Pattern:** MVC / DAO Architecture
   - **`main`**: Application entry point (`Main.java`)
+  - **`web`**: Pure Java Web Server & Views (`WebServer.java`, `WebViews.java`, `WebUtils.java`)
   - **`database`**: JDBC connection management (`DBConnection.java`)
   - **`model`**: Domain entities (`Passenger.java`, `Bus.java`, `Booking.java`)
   - **`dao`**: Data Access Objects (`PassengerDAO.java`, `BusDAO.java`, `BookingDAO.java`)
-  - **`gui`**: Graphical user interface windows (`LoginFrame.java`, `Dashboard.java`, `PassengerManagement.java`, `BusManagement.java`, `BookingManagement.java`, `TicketGeneration.java`)
+  - **`gui`**: Legacy Swing GUI available via `--gui` flag (`LoginFrame.java`)
 
 ---
 
@@ -49,7 +51,7 @@ docker compose up --build
 Once started, open your web browser and navigate to:
 👉 **[http://localhost:6969](http://localhost:6969)**
 
-The interactive Java Swing GUI will load automatically right in your browser via noVNC!
+The SwiftBus Web Portal loads directly in your browser:
 - **Default Username:** `admin`
 - **Default Password:** `1234`
 
