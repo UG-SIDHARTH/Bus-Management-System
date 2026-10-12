@@ -6,7 +6,7 @@ services:
     image: mysql:8.0
     container_name: bus-mgmt-db
     restart: unless-stopped
-    command: --port=3307
+    command: ["mysqld", "--port=3307"]
     environment:
       MYSQL_ROOT_PASSWORD: "root@6069"
       MYSQL_DATABASE: "bus_reservation"
@@ -16,11 +16,11 @@ services:
       - ./lib/database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -P 3307 -u root -p'root@6069' --silent || exit 1"]
-      interval: 5s
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-P", "3307", "-u", "root", "-proot@6069"]
+      interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 15
+      start_period: 40s
     networks:
       - bus-network
 
