@@ -125,7 +125,7 @@ public class WebViews {
                 "      <input type=\"hidden\" name=\"next\" value=\"" + WebUtils.escapeHtml(nextUrl != null ? nextUrl : "") + "\" />" +
                 "      <div class=\"form-group\">" +
                 "        <label for=\"username\">Username or Email</label>" +
-                "        <input type=\"text\" id=\"username\" name=\"username\" placeholder=\"admin or your@email.com\" required autofocus />" +
+                "        <input type=\"text\" id=\"username\" name=\"username\" placeholder=\"your username or email\" required autofocus />" +
                 "      </div>" +
                 "      <div class=\"form-group\">" +
                 "        <label for=\"password\">Password</label>" +
@@ -138,7 +138,6 @@ public class WebViews {
                 "      <a href=\"/register\" class=\"btn btn-outline-primary btn-block\" style=\"margin-top:0.6rem;\">➕ Create New Account / Register &rarr;</a>" +
                 "    </div>" +
                 "    <div class=\"login-footer\">" +
-                "      <small>Default credentials: <code>admin</code> / <code>1234</code></small>" +
                 "      <p class=\"login-copyright\">&copy; 2026 SwiftBus Inc. All Rights Reserved.</p>" +
                 "    </div>" +
                 "  </div>" +

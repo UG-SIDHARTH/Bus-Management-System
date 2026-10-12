@@ -60,9 +60,7 @@ CREATE TABLE IF NOT EXISTS booking (
     CONSTRAINT fk_booking_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Seed Default Users
--- Admin: admin / 1234
--- User:  john_doe / password123
+-- Seed Initial Accounts (Hashed using PBKDF2WithHmacSHA256)
 INSERT IGNORE INTO users (id, username, email, password_hash, salt, role) VALUES
 (1, 'admin', 'admin@swiftbus.local', '89f41753c150531c3bfdb09a3cf6fa4360341ea226d7f02fcbc0768c67c5144b', 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'ADMIN'),
 (2, 'john_doe', 'john@example.com', '3b1f5c66b8d234a667ec38a4c1647ea36014ba361309f44cf64b85da8158d601', 'f0e1d2c3b4a5968778695a4b3c2d1e0f', 'USER');

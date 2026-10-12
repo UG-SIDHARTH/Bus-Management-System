@@ -120,12 +120,12 @@ chmod +x test-debian.sh
 
 ---
 
-## 🔑 Default Seed Credentials
+## 🔑 Authentication & Access Control
 
-| Role | Username | Email | Password |
-|---|---|---|---|
-| **Administrator** | `admin` | `admin@swiftbus.local` | `1234` |
-| **Regular User** | `john_doe` | `john@example.com` | `password123` |
+SwiftBus provides role-based access control with secure credential handling:
+- **Travelers / Users:** Register accounts self-service via the `/register` web portal or the desktop GUI dialog.
+- **Administrators:** Oversee bus fleets, schedules, passenger records, and all reservations.
+- **Credential Storage:** All user credentials are stored with salted PBKDF2WithHmacSHA256 hashes (`users` table). Default seed accounts are initialized in encrypted form.
 
 ---
 

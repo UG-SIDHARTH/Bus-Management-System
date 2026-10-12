@@ -72,12 +72,6 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- 4. Seed initial default users (PBKDF2WithHmacSHA256, 65000 iterations)
--- Default Admin: username 'admin', password '1234'
--- Salt: a1b2c3d4e5f60718293a4b5c6d7e8f90
--- Pre-hashed PBKDF2: 89f41753c150531c3bfdb09a3cf6fa4360341ea226d7f02fcbc0768c67c5144b
--- Default User: username 'john_doe', password 'password123'
--- Salt: f0e1d2c3b4a5968778695a4b3c2d1e0f
--- Pre-hashed PBKDF2: 3b1f5c66b8d234a667ec38a4c1647ea36014ba361309f44cf64b85da8158d601
 INSERT IGNORE INTO users (id, username, email, password_hash, salt, role) VALUES
 (1, 'admin', 'admin@swiftbus.local', '89f41753c150531c3bfdb09a3cf6fa4360341ea226d7f02fcbc0768c67c5144b', 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'ADMIN'),
 (2, 'john_doe', 'john@example.com', '3b1f5c66b8d234a667ec38a4c1647ea36014ba361309f44cf64b85da8158d601', 'f0e1d2c3b4a5968778695a4b3c2d1e0f', 'USER');

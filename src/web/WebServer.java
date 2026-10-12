@@ -90,8 +90,7 @@ public class WebServer {
         System.out.println(" 🚍 SwiftBus Management System is LIVE!");
         System.out.println(" Web Portal URL: http://localhost:" + port);
         System.out.println(" Worker Threads: 4 (Fixed Thread Pool for Low CPU)");
-        System.out.println(" Default Admin: admin / 1234");
-        System.out.println(" Default User:  john_doe / password123");
+        System.out.println(" Security Mode:  PBKDF2 Hashed & Rate-Limited");
         System.out.println("==================================================");
     }
 

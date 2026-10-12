@@ -39,14 +39,14 @@ public class LoginFrame extends JFrame {
         userLabel.setBounds(70, 115, 100, 30);
         userLabel.setFont(new Font("Arial", Font.BOLD, 13));
 
-        usernameField = new JTextField("admin");
+        usernameField = new JTextField();
         usernameField.setBounds(170, 115, 250, 32);
 
         JLabel passLabel = new JLabel("Password:");
         passLabel.setBounds(70, 165, 100, 30);
         passLabel.setFont(new Font("Arial", Font.BOLD, 13));
 
-        passwordField = new JPasswordField("1234");
+        passwordField = new JPasswordField();
         passwordField.setBounds(170, 165, 250, 32);
 
         JButton loginButton = new JButton("Sign In");
@@ -65,7 +65,7 @@ public class LoginFrame extends JFrame {
         registerButton.setFocusPainted(false);
         registerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        JLabel helperText = new JLabel("Default Admin: admin / 1234  •  Or register a new traveler account", SwingConstants.CENTER);
+        JLabel helperText = new JLabel("Sign in with your credentials or register a new traveler account", SwingConstants.CENTER);
         helperText.setBounds(20, 285, 480, 20);
         helperText.setFont(new Font("Arial", Font.PLAIN, 11));
         helperText.setForeground(new Color(127, 140, 141));
@@ -110,7 +110,7 @@ public class LoginFrame extends JFrame {
                     System.err.println("[LoginFrame] DB Auth Error: " + ex.getMessage());
                 }
 
-                JOptionPane.showMessageDialog(LoginFrame.this, "Invalid Username or Password!\n(Default: admin / 1234)", "Authentication Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(LoginFrame.this, "Invalid Username or Password!", "Authentication Error", JOptionPane.ERROR_MESSAGE);
             }
         };
 
