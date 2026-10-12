@@ -25,7 +25,7 @@ services:
       - bus-network
 
   # ============================================================================
-  # Bus Management Application (Java Swing UI accessible via Browser)
+  # SwiftBus Web Portal (100% Pure Java Website on Port 6969)
   # Accessible at: http://localhost:6969
   # ============================================================================
   app:
@@ -44,8 +44,7 @@ services:
     ports:
       - "6969:6969"
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     networks:
       - bus-network
 
