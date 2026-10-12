@@ -40,13 +40,33 @@ The database script is located at [`lib/database.sql`](file:///c:/Users/ASUS/One
 
 ## 🚀 How to Run
 
-### Option 1: Run directly with Java
+### Option 1: Run with Docker Compose (Recommended - Zero Setup)
+Run the entire application along with the MySQL database in Docker:
+```bash
+# Start MySQL and the Application
+docker compose up --build
+```
+Once started, open your web browser and navigate to:
+👉 **[http://localhost:6969](http://localhost:6969)**
+
+The interactive Java Swing GUI will load automatically right in your browser via noVNC!
+- **Default Username:** `admin`
+- **Default Password:** `1234`
+
+To stop:
+```bash
+docker compose down
+```
+
+---
+
+### Option 2: Run directly with Java (Local)
 ```powershell
 # From the project root directory:
 java -cp "bin;lib/mysql-connector-j-26.7.0/mysql-connector-j-26.7.0.jar" main.Main
 ```
 
-### Option 2: Recompile and Run
+### Option 3: Recompile and Run Locally
 ```powershell
 # Compile all source files
 $files = (Get-ChildItem -Recurse src -Filter *.java).FullName
