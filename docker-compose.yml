@@ -1,12 +1,17 @@
+# ============================================================================
+# SwiftBus Management & Reservation System - Docker Compose Configuration
+# (C) 2026 SwiftBus Inc. All Rights Reserved.
+# ============================================================================
 services:
   # ============================================================================
-  # MySQL 8.0 Database Service
+  # MySQL 8.0 Database Service (Tuned for Low Hardware: Pentium + 4GB RAM)
   # ============================================================================
   db:
     image: mysql:8.0
     container_name: bus-mgmt-db
     restart: unless-stopped
     command: ["mysqld", "--port=3307"]
+    mem_limit: 1g
     environment:
       MYSQL_ROOT_PASSWORD: "root@6069"
       MYSQL_DATABASE: "bus_reservation"
@@ -14,6 +19,7 @@ services:
       - "3307:3307"
     volumes:
       - ./lib/database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
       - bus_db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -u root -proot@6069 --silent || mysqladmin ping -h 127.0.0.1 -P 3307 -u root -proot@6069 --silent"]
@@ -21,6 +27,11 @@ services:
       timeout: 5s
       retries: 20
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - bus-network
 
@@ -34,6 +45,7 @@ services:
       dockerfile: Dockerfile
     container_name: bus-mgmt-app
     restart: unless-stopped
+    mem_limit: 512m
     environment:
       DB_HOST: db
       DB_PORT: 3307
@@ -41,10 +53,23 @@ services:
       DB_USER: root
       DB_PASSWORD: "root@6069"
       PORT: 6969
+      PBKDF2_ITERATIONS: 65000
     ports:
       - "6969:6969"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 6969 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - bus-network
 

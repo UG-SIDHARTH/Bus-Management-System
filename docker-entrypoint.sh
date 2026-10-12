@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Default environment variables
@@ -10,6 +10,7 @@ echo "=================================================="
 echo " 🚍 Starting SwiftBus Web Management System"
 echo " Web Portal Port: ${PORT}"
 echo " Database Target: ${DB_HOST}:${DB_PORT}"
+echo " Hardware Profile: Low-spec Pentium / 512MB Cgroup"
 echo "=================================================="
 
 # Wait for MySQL to become available if DB_HOST is set
@@ -32,6 +33,14 @@ fi
 echo "=================================================="
 echo " Launching SwiftBus Native Java Web Server..."
 echo " Access at: http://localhost:${PORT}"
+echo " JVM Settings: -Xms128m -Xmx384m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k"
 echo "=================================================="
 
-exec java -cp "/app/bin:/app/lib/mysql-connector-j-26.7.0.jar" main.Main
+exec java \
+  -Xms128m \
+  -Xmx384m \
+  -XX:+UseSerialGC \
+  -XX:TieredStopAtLevel=1 \
+  -Xss512k \
+  -cp "/app/bin:/app/lib/mysql-connector-j-26.7.0.jar" \
+  main.Main

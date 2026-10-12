@@ -5,6 +5,7 @@ public class Booking {
     // Core entity fields
     private int bookingId;
     private int passengerId;
+    private Integer userId;
     private int busId;
     private int seatNumber;
     private String bookingDate;
@@ -22,8 +23,13 @@ public class Booking {
     }
 
     public Booking(int bookingId, int passengerId, int busId, int seatNumber, String bookingDate, double fare, String status) {
+        this(bookingId, passengerId, null, busId, seatNumber, bookingDate, fare, status);
+    }
+
+    public Booking(int bookingId, int passengerId, Integer userId, int busId, int seatNumber, String bookingDate, double fare, String status) {
         this.bookingId = bookingId;
         this.passengerId = passengerId;
+        this.userId = userId;
         this.busId = busId;
         this.seatNumber = seatNumber;
         this.bookingDate = bookingDate;
@@ -38,6 +44,10 @@ public class Booking {
 
     public int getPassengerId() {
         return passengerId;
+    }
+
+    public Integer getUserId() {
+        return userId;
     }
 
     public int getBusId() {
@@ -89,6 +99,10 @@ public class Booking {
         this.passengerId = passengerId;
     }
 
+    public void setUserId(Integer userId) {
+        this.userId = userId;
+    }
+
     public void setBusId(int busId) {
         this.busId = busId;
     }
@@ -131,6 +145,6 @@ public class Booking {
 
     @Override
     public String toString() {
-        return "Booking #" + bookingId + " [Passenger: " + passengerName + ", Bus: " + busName + ", Seat: " + seatNumber + "]";
+        return "Booking #" + bookingId + " [User: " + userId + ", Passenger: " + passengerName + ", Bus: " + busName + ", Seat: " + seatNumber + "]";
     }
 }

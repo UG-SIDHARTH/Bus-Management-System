@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -39,6 +40,8 @@ public class WebUtils {
         byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-store, must-revalidate");
+        exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+        exchange.getResponseHeaders().set("X-Frame-Options", "DENY");
         exchange.sendResponseHeaders(statusCode, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
@@ -48,7 +51,8 @@ public class WebUtils {
     public static void sendCss(HttpExchange exchange, String css) throws IOException {
         byte[] bytes = css.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "text/css; charset=UTF-8");
-        exchange.getResponseHeaders().set("Cache-Control", "public, max-age=3600");
+        // High caching for static CSS to minimize HDD reads on low-spec server
+        exchange.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
         exchange.sendResponseHeaders(200, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
@@ -73,26 +77,47 @@ public class WebUtils {
         exchange.close();
     }
 
-    public static boolean isAuthenticated(HttpExchange exchange) {
+    public static String getSessionToken(HttpExchange exchange) {
         String cookieHeader = exchange.getRequestHeaders().getFirst("Cookie");
         if (cookieHeader != null) {
             String[] cookies = cookieHeader.split(";");
             for (String cookie : cookies) {
                 String[] parts = cookie.trim().split("=", 2);
-                if (parts.length == 2 && "bms_session".equals(parts[0]) && "authenticated".equals(parts[1])) {
-                    return true;
+                if (parts.length == 2 && SessionManager.SESSION_COOKIE_NAME.equals(parts[0])) {
+                    return parts[1];
                 }
             }
         }
-        return false;
+        return null;
     }
 
-    public static void setAuthCookie(HttpExchange exchange, boolean login) {
-        if (login) {
-            exchange.getResponseHeaders().add("Set-Cookie", "bms_session=authenticated; Path=/; HttpOnly; SameSite=Lax");
-        } else {
-            exchange.getResponseHeaders().add("Set-Cookie", "bms_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+    public static void setSessionCookie(HttpExchange exchange, String sessionId) {
+        String cookieVal = SessionManager.SESSION_COOKIE_NAME + "=" + sessionId + "; Path=/; HttpOnly; SameSite=Strict";
+        exchange.getResponseHeaders().add("Set-Cookie", cookieVal);
+    }
+
+    public static void clearSessionCookie(HttpExchange exchange) {
+        String cookieVal = SessionManager.SESSION_COOKIE_NAME + "=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict";
+        exchange.getResponseHeaders().add("Set-Cookie", cookieVal);
+    }
+
+    public static String getClientIp(HttpExchange exchange) {
+        String xForwarded = exchange.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (xForwarded != null && !xForwarded.trim().isEmpty()) {
+            return xForwarded.split(",")[0].trim();
         }
+        String xReal = exchange.getRequestHeaders().getFirst("X-Real-IP");
+        if (xReal != null && !xReal.trim().isEmpty()) {
+            return xReal.trim();
+        }
+        InetSocketAddress remote = exchange.getRemoteAddress();
+        return remote != null ? remote.getAddress().getHostAddress() : "127.0.0.1";
+    }
+
+    public static boolean validateCsrfToken(Map<String, String> form, SessionManager.Session session) {
+        if (session == null || session.getCsrfToken() == null) return false;
+        String token = form.get("csrf_token");
+        return token != null && token.equals(session.getCsrfToken());
     }
 
     public static String escapeHtml(String text) {

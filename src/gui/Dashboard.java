@@ -81,7 +81,7 @@ public class Dashboard extends JFrame {
 
         mainPanel.add(gridPanel, BorderLayout.CENTER);
 
-        // Footer / Stats Bar
+        // Footer / Stats Bar & Copyright
         JPanel footerPanel = new JPanel(new BorderLayout());
         footerPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
@@ -89,10 +89,15 @@ public class Dashboard extends JFrame {
         statsLabel.setFont(new Font("Arial", Font.PLAIN, 13));
         statsLabel.setForeground(new Color(127, 140, 141));
 
+        JLabel copyrightLabel = new JLabel("© 2026 SwiftBus Inc. All Rights Reserved.", SwingConstants.CENTER);
+        copyrightLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+        copyrightLabel.setForeground(new Color(149, 165, 166));
+
         JButton refreshStatsBtn = new JButton("Refresh Stats");
         refreshStatsBtn.addActionListener(e -> updateQuickStats());
 
         footerPanel.add(statsLabel, BorderLayout.WEST);
+        footerPanel.add(copyrightLabel, BorderLayout.CENTER);
         footerPanel.add(refreshStatsBtn, BorderLayout.EAST);
 
         mainPanel.add(footerPanel, BorderLayout.SOUTH);
