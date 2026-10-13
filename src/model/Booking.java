@@ -12,9 +12,18 @@ public class Booking {
     private double fare;
     private String status;
 
-    // Supplementary detail fields for views and ticket generation
+    // Concession fields (Disability & Welfare)
+    private double concessionAmount = 0.0;
+    private boolean isConcession = false;
+
+    // Supplementary detail fields for views, admin history, and tickets
     private String passengerName;
     private String passengerPhone;
+    private String passengerGender;
+    private int passengerAge;
+    private boolean passengerDisability = false;
+    private String disabilityType;
+    private String disabilityId;
     private String busName;
     private String source;
     private String destination;
@@ -27,6 +36,10 @@ public class Booking {
     }
 
     public Booking(int bookingId, int passengerId, Integer userId, int busId, int seatNumber, String bookingDate, double fare, String status) {
+        this(bookingId, passengerId, userId, busId, seatNumber, bookingDate, fare, status, 0.0, false);
+    }
+
+    public Booking(int bookingId, int passengerId, Integer userId, int busId, int seatNumber, String bookingDate, double fare, String status, double concessionAmount, boolean isConcession) {
         this.bookingId = bookingId;
         this.passengerId = passengerId;
         this.userId = userId;
@@ -35,6 +48,8 @@ public class Booking {
         this.bookingDate = bookingDate;
         this.fare = fare;
         this.status = status;
+        this.concessionAmount = concessionAmount;
+        this.isConcession = isConcession;
     }
 
     // Getters
@@ -70,12 +85,40 @@ public class Booking {
         return status;
     }
 
+    public double getConcessionAmount() {
+        return concessionAmount;
+    }
+
+    public boolean isConcession() {
+        return isConcession;
+    }
+
     public String getPassengerName() {
         return passengerName;
     }
 
     public String getPassengerPhone() {
         return passengerPhone;
+    }
+
+    public String getPassengerGender() {
+        return passengerGender;
+    }
+
+    public int getPassengerAge() {
+        return passengerAge;
+    }
+
+    public boolean isPassengerDisability() {
+        return passengerDisability;
+    }
+
+    public String getDisabilityType() {
+        return disabilityType;
+    }
+
+    public String getDisabilityId() {
+        return disabilityId;
     }
 
     public String getBusName() {
@@ -123,12 +166,40 @@ public class Booking {
         this.status = status;
     }
 
+    public void setConcessionAmount(double concessionAmount) {
+        this.concessionAmount = concessionAmount;
+    }
+
+    public void setConcession(boolean concession) {
+        isConcession = concession;
+    }
+
     public void setPassengerName(String passengerName) {
         this.passengerName = passengerName;
     }
 
     public void setPassengerPhone(String passengerPhone) {
         this.passengerPhone = passengerPhone;
+    }
+
+    public void setPassengerGender(String passengerGender) {
+        this.passengerGender = passengerGender;
+    }
+
+    public void setPassengerAge(int passengerAge) {
+        this.passengerAge = passengerAge;
+    }
+
+    public void setPassengerDisability(boolean passengerDisability) {
+        this.passengerDisability = passengerDisability;
+    }
+
+    public void setDisabilityType(String disabilityType) {
+        this.disabilityType = disabilityType;
+    }
+
+    public void setDisabilityId(String disabilityId) {
+        this.disabilityId = disabilityId;
     }
 
     public void setBusName(String busName) {
@@ -145,6 +216,8 @@ public class Booking {
 
     @Override
     public String toString() {
-        return "Booking #" + bookingId + " [User: " + userId + ", Passenger: " + passengerName + ", Bus: " + busName + ", Seat: " + seatNumber + "]";
+        return "Booking #" + bookingId + " [User: " + userId + ", Passenger: " + passengerName +
+                ", Bus: " + busName + ", Seat: " + seatNumber +
+                (isConcession ? " (Disability Concession: $" + concessionAmount + ")" : "") + "]";
     }
 }

@@ -204,6 +204,10 @@ public class SecurityUtils {
         }
     }
 
+    public static boolean isLoginRateLimited(String ip) {
+        return isRateLimited(ip);
+    }
+
     public static void recordLoginFailure(String ip) {
         if (ip == null || ip.isEmpty()) return;
         long now = System.currentTimeMillis();

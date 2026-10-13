@@ -74,6 +74,41 @@ Engineered with zero external web frameworks (no Spring, no Servlets, no externa
 
 ---
 
+## 🌟 New Features (v3.0)
+
+### 1. 🎟️ Multi-Seat Booking for the Same User Account
+- **Batch Seat Selection:** Users can select and reserve multiple seats in a single action directly on the visual bus floorplan.
+- **Dynamic Badge Management:** Selected seats are rendered with interactive removable badges (e.g. `Seat #12`, `Seat #13`, `Seat #14`).
+- **Transactional Consistency:** Atomic multi-seat creation via [`BookingDAO.addBookingsBatch`](file:///e:/d%20drive/antigravity%20projects/Bus-Management-System/src/dao/BookingDAO.java).
+- **Personal Booking History:** All bookings are permanently tied to the user's account and displayed under `/bookings` and `/tickets`.
+
+### 2. 👑 Admin User Activity Audit & Passenger Drilldown (`/admin/users`)
+- **Full User Registry:** Administrators have a dedicated command center displaying all registered accounts, join dates, total bookings count, and lifetime expenditure.
+- **Deep Activity Drilldown:** Click to inspect any user's complete booking timeline.
+- **Comprehensive Passenger Demographics:** Displays passenger name, age, contact phone, and disability concession verification for every booked ticket.
+
+### 3. ♿ Disability Concession & Transportation Welfare (50% Concession)
+- **Automatic 50% Concession:** Reduced travel fares for passengers with certified disabilities (e.g., $50.00 standard fare → $25.00 net fare).
+- **Interactive Fare Calculator:** Real-time calculation on the reservation form showing standard unit fare, subtotal, 50% concession discount, and net total.
+- **Boarding Pass Endorsement:** Printable boarding passes and receipt files explicitly highlight `♿ 50% Disability Concession Applied` and UDID certificate numbers.
+
+### 4. 🗄️ Dedicated Disability Registry Database Schema
+- **Dedicated Table:** [`passenger_disability`](file:///e:/d%20drive/antigravity%20projects/Bus-Management-System/lib/database.sql) tracks government disability card numbers (UDID), disability category, concession percentage, and verification status.
+- **Extended Entity Models:** [`Passenger.java`](file:///e:/d%20drive/antigravity%20projects/Bus-Management-System/src/model/Passenger.java) and [`Booking.java`](file:///e:/d%20drive/antigravity%20projects/Bus-Management-System/src/model/Booking.java) store disability metadata and concession deductions.
+- **Self-Healing Schema Migrations:** [`DBMigration.java`](file:///e:/d%20drive/antigravity%20projects/Bus-Management-System/src/database/DBMigration.java) automatically updates older database tables on startup.
+
+### 5. 🧭 Real-Time Nearest Passenger & Gender Radar
+- **Visual Gender Seat Occupancy:** Booked seats are color-coded and labeled on the visual layout:
+  - 👨 **Male Occupied:** Blue styling with male occupant badge
+  - 👩 **Female Occupied:** Rose/pink styling with female occupant badge
+  - 🧑 **Other Occupied:** Purple styling with non-binary occupant badge
+- **Real-Time Proximity Radar:** Hovering over or selecting an available seat calculates:
+  - Direct adjacent neighbor occupancy (Free or taken by Male / Female / Other).
+  - Exact Euclidean/layout distance to the nearest male and female passengers.
+  - Live neighbor comfort advisory giving travelers peace of mind before confirming seats.
+
+---
+
 ## ⚙️ Low-Spec Server Hardware Tuning
 
 Tailored for **Intel Pentium (1-2 Cores), 4 GB System RAM, 500 GB HDD**:

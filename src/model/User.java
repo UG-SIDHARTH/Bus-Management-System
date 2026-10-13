@@ -12,6 +12,10 @@ public class User {
     private String role;
     private Timestamp createdAt;
 
+    // Reporting / Admin Aggregation fields
+    private int bookingCount = 0;
+    private double totalSpent = 0.0;
+
     public User() {
     }
 
@@ -87,6 +91,22 @@ public class User {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public int getBookingCount() {
+        return bookingCount;
+    }
+
+    public void setBookingCount(int bookingCount) {
+        this.bookingCount = bookingCount;
+    }
+
+    public double getTotalSpent() {
+        return totalSpent;
+    }
+
+    public void setTotalSpent(double totalSpent) {
+        this.totalSpent = totalSpent;
     }
 
     public boolean isAdmin() {

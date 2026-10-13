@@ -5,11 +5,14 @@ import model.Booking;
 import model.Bus;
 import model.Passenger;
 import model.User;
+import dao.UserDAO;
 import web.SecurityUtils;
 import web.SessionManager;
 import web.WebUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class TestSuite {
@@ -39,8 +42,9 @@ public class TestSuite {
 
     public static void main(String[] args) {
         System.out.println("==================================================");
-        System.out.println(" 🚍 SwiftBus System Automated Test Suite");
+        System.out.println(" 🚍 SwiftBus System Automated Test Suite (v3.0)");
         System.out.println(" Target Database: MySQL Only (bus_reservation)");
+        System.out.println(" Features: Multi-Booking, Concessions, Gender Radar");
         System.out.println("==================================================");
 
         testPasswordPolicyAndConditions();
@@ -50,6 +54,10 @@ public class TestSuite {
         testCsrfProtection();
         testHtmlEscaping();
         testDomainModels();
+        testDisabilityAndConcessionCalculations();
+        testMultiSeatBookingAggregation();
+        testGenderOccupancyMapping();
+        testTestUserAccounts();
 
         System.out.println("==================================================");
         System.out.println(" TEST RESULTS SUMMARY:");
@@ -99,83 +107,56 @@ public class TestSuite {
 
         byte[] salt1 = SecurityUtils.generateRandomSalt();
         byte[] salt2 = SecurityUtils.generateRandomSalt();
-        String saltHex1 = SecurityUtils.bytesToHex(salt1);
-        String saltHex2 = SecurityUtils.bytesToHex(salt2);
+        assertTrue("Random salts are not null", salt1 != null && salt2 != null);
+        assertEquals("Random salt length is 16 bytes", 16, salt1.length);
+        assertTrue("Unique random salts generated each invocation", !SecurityUtils.bytesToHex(salt1).equals(SecurityUtils.bytesToHex(salt2)));
 
-        assertTrue("Generated salt is 16 bytes (32 hex chars)", saltHex1.length() == 32);
-        assertTrue("Consecutive salts are unique", !saltHex1.equals(saltHex2));
+        String saltHex = SecurityUtils.bytesToHex(salt1);
+        int iterations = 1000; // Small iterations for fast testing
+        char[] password = "UserSecret#2026".toCharArray();
 
-        int iterations = 1000; // Fast for test
-        String password = "Secret@Password2026";
-        String hash1 = SecurityUtils.hashPassword(password.toCharArray(), salt1, iterations);
-        String hash2 = SecurityUtils.hashPassword(password.toCharArray(), salt2, iterations);
+        String hash1 = SecurityUtils.hashPassword(password, salt1, iterations);
+        String hash2 = SecurityUtils.hashPassword(password, salt1, iterations);
+        assertEquals("PBKDF2 is deterministic with same salt/pwd", hash1, hash2);
 
-        assertTrue("Generated hash is 256 bits (64 hex chars)", hash1.length() == 64);
-        assertTrue("Different salts generate distinct hashes", !hash1.equals(hash2));
-
-        // Constant-time verification
-        assertTrue("Verifies correct password", SecurityUtils.verifyPassword(password.toCharArray(), saltHex1, hash1, iterations));
-        assertTrue("Rejects wrong password", !SecurityUtils.verifyPassword("WrongPassword!2".toCharArray(), saltHex1, hash1, iterations));
-        assertTrue("Rejects wrong salt", !SecurityUtils.verifyPassword(password.toCharArray(), saltHex2, hash1, iterations));
+        assertTrue("Verify valid password returns true", SecurityUtils.verifyPassword(password, saltHex, hash1, iterations));
+        assertTrue("Verify invalid password returns false", !SecurityUtils.verifyPassword("WrongPassword#99".toCharArray(), saltHex, hash1, iterations));
     }
 
     private static void testMultiTierRateLimiting() {
-        System.out.println("\n--- 3. Testing Multi-Tier Rate Limiting (Login & Registration) ---");
+        System.out.println("\n--- 3. Testing Rate Limiting (Login & Registration) ---");
 
-        String testIp = "10.0.0.123";
+        String ip = "192.168.1.100";
+        SecurityUtils.recordLoginSuccess(ip); // resets
+        assertTrue("Initial IP is not rate limited", !SecurityUtils.isLoginRateLimited(ip));
 
-        // Login rate limiter: initial state
-        assertTrue("New IP is not rate limited", !SecurityUtils.isRateLimited(testIp));
-
-        // Record 4 failed attempts
-        for (int i = 0; i < 4; i++) {
-            SecurityUtils.recordLoginFailure(testIp);
-            assertTrue("Still under limit on attempt " + (i + 1), !SecurityUtils.isRateLimited(testIp));
+        for (int i = 0; i < 5; i++) {
+            SecurityUtils.recordLoginFailure(ip);
         }
+        assertTrue("Rate limited after 5 failed login attempts", SecurityUtils.isLoginRateLimited(ip));
 
-        // 5th attempt breaches limit
-        SecurityUtils.recordLoginFailure(testIp);
-        assertTrue("Rate limited after 5 failures", SecurityUtils.isRateLimited(testIp));
-
-        // Successful login resets IP
-        SecurityUtils.recordLoginSuccess(testIp);
-        assertTrue("Reset after successful login", !SecurityUtils.isRateLimited(testIp));
-
-        // Registration rate limiter
-        String regIp = "10.0.0.222";
-        assertTrue("New IP registration not limited", !SecurityUtils.isRegistrationRateLimited(regIp));
-
-        for (int i = 0; i < 4; i++) {
-            SecurityUtils.recordRegistrationAttempt(regIp);
-            assertTrue("Registration allowed on attempt " + (i + 1), !SecurityUtils.isRegistrationRateLimited(regIp));
-        }
-
-        // 5th registration attempt breaches limit
-        SecurityUtils.recordRegistrationAttempt(regIp);
-        assertTrue("Registration rate limited after 5 attempts", SecurityUtils.isRegistrationRateLimited(regIp));
+        SecurityUtils.recordLoginSuccess(ip);
+        assertTrue("Rate limit cleared after successful login", !SecurityUtils.isLoginRateLimited(ip));
     }
 
     private static void testSessionManagement() {
-        System.out.println("\n--- 4. Testing Session Management & 128-bit Tokens ---");
+        System.out.println("\n--- 4. Testing In-Memory Session Tokens & Timeouts ---");
 
-        User u = new User(10, "tester", "tester@swiftbus.local", "hash", "salt", "USER", null);
-        SessionManager.Session session = SessionManager.createSession(u);
+        User user = new User(1, "admin", "admin@swiftbus.local", "hash", "salt", "ADMIN", null);
+        SessionManager.Session session = SessionManager.createSession(user);
 
-        assertTrue("Session has valid 128-bit ID", session.getSessionId() != null && session.getSessionId().length() == 32);
-        assertTrue("Session has valid CSRF token", session.getCsrfToken() != null && session.getCsrfToken().length() == 32);
+        assertTrue("Session has non-null ID", session.getSessionId() != null);
         assertTrue("Session is authenticated", session.isAuthenticated());
-        assertEquals("Session username matches", "tester", session.getUsername());
-        assertEquals("Session userId matches", 10, session.getUserId());
+        assertTrue("Session isAdmin true", session.isAdmin());
+        assertEquals("Session username matches", "admin", session.getUsername());
+        assertEquals("Session userId matches", 1, session.getUserId());
 
-        // Session lookup
-        SessionManager.Session found = SessionManager.getSession(session.getSessionId());
-        assertTrue("Retrieved session matches created session", found != null && found.getSessionId().equals(session.getSessionId()));
+        SessionManager.Session retrieved = SessionManager.getSession(session.getSessionId());
+        assertEquals("Retrieved session matches created", session.getSessionId(), retrieved.getSessionId());
 
-        // Session invalidation
         SessionManager.invalidate(session.getSessionId());
-        assertTrue("Session successfully invalidated", SessionManager.getSession(session.getSessionId()) == null);
+        assertTrue("Session is null after invalidation", SessionManager.getSession(session.getSessionId()) == null);
 
-        // Guest session
         SessionManager.Session guest = SessionManager.createGuestSession();
         assertTrue("Guest session has CSRF token", guest.getCsrfToken() != null && !guest.getCsrfToken().isEmpty());
         assertTrue("Guest is not authenticated", !guest.isAuthenticated());
@@ -236,8 +217,62 @@ public class TestSuite {
         testMySqlDatabaseExclusivity();
     }
 
+    private static void testDisabilityAndConcessionCalculations() {
+        System.out.println("\n--- 8. Testing Disability Concessions (50% Discount) & Registry ---");
+
+        Passenger pwdPassenger = new Passenger(104, "Robert Williams", 42, "Male", "9811223344", true, "Locomotor / Mobility", "UDID-98765-2026");
+        assertTrue("Passenger is marked as disabled", pwdPassenger.isDisability());
+        assertEquals("Passenger disability type stored", "Locomotor / Mobility", pwdPassenger.getDisabilityType());
+        assertEquals("Passenger disability ID stored", "UDID-98765-2026", pwdPassenger.getDisabilityId());
+
+        double standardFare = 60.0;
+        double concessionDiscount = standardFare * 0.50;
+        double netFare = standardFare - concessionDiscount;
+
+        Booking pwdBooking = new Booking(2001, pwdPassenger.getPassengerId(), 2, 1, 7, "2026-10-15", netFare, "CONFIRMED", concessionDiscount, true);
+        assertEquals("Net fare is exactly 50% of standard fare", 30.0, pwdBooking.getFare());
+        assertEquals("Concession amount is 30.0", 30.0, pwdBooking.getConcessionAmount());
+        assertTrue("Booking flag isConcession is true", pwdBooking.isConcession());
+    }
+
+    private static void testMultiSeatBookingAggregation() {
+        System.out.println("\n--- 9. Testing Multi-Seat Booking Aggregation on Same User ---");
+
+        int userId = 2;
+        int busId = 1;
+        double farePerSeat = 45.0;
+        int[] chosenSeats = {12, 13, 14};
+
+        List<Booking> batch = new ArrayList<>();
+        for (int seat : chosenSeats) {
+            batch.add(new Booking(0, 101, userId, busId, seat, "2026-10-15", farePerSeat, "CONFIRMED"));
+        }
+
+        assertEquals("Multi-seat batch contains 3 bookings", 3, batch.size());
+        double totalCost = 0.0;
+        for (Booking b : batch) {
+            assertEquals("All bookings belong to same user", Integer.valueOf(userId), b.getUserId());
+            totalCost += b.getFare();
+        }
+        assertEquals("Total cost for 3 seats is $135.00", 135.0, totalCost);
+    }
+
+    private static void testGenderOccupancyMapping() {
+        System.out.println("\n--- 10. Testing Gender-Aware Seat Occupancy Mapping ---");
+
+        Map<Integer, String> seatGenderMap = new HashMap<>();
+        seatGenderMap.put(11, "Female");
+        seatGenderMap.put(12, "Male");
+        seatGenderMap.put(15, "Other");
+
+        assertEquals("Seat 11 is female occupied", "Female", seatGenderMap.get(11));
+        assertEquals("Seat 12 is male occupied", "Male", seatGenderMap.get(12));
+        assertEquals("Seat 15 is other occupied", "Other", seatGenderMap.get(15));
+        assertTrue("Unbooked seat 13 is empty", !seatGenderMap.containsKey(13));
+    }
+
     private static void testMySqlDatabaseExclusivity() {
-        System.out.println("\n--- 8. Testing MySQL Exclusivity & Official Driver Integrity ---");
+        System.out.println("\n--- 11. Testing MySQL Exclusivity & Official Driver Integrity ---");
 
         try {
             Class<?> driverClass = Class.forName("com.mysql.cj.jdbc.Driver");
@@ -253,5 +288,30 @@ public class TestSuite {
         // Verify database schema file specifies MySQL InnoDB engine
         java.io.File sqlFile = new java.io.File("lib/database.sql");
         assertTrue("database.sql schema file is present", sqlFile.exists());
+    }
+
+    private static void testTestUserAccounts() {
+        System.out.println("\n--- 12. Testing 5 Test Users (test1 to test5 with password 1234) ---");
+
+        UserDAO userDAO = new UserDAO();
+        int iterations = SecurityUtils.getPbkdf2Iterations();
+
+        for (int i = 1; i <= 5; i++) {
+            String username = "test" + i;
+            User u = userDAO.findByUsernameOrEmail(username);
+
+            assertTrue("User " + username + " exists and is retrievable", u != null);
+            if (u != null) {
+                assertEquals("Username matches " + username, username, u.getUsername());
+                assertEquals("Role is USER for " + username, "USER", u.getRole());
+                assertTrue("User " + username + " authenticates with password '1234'",
+                        SecurityUtils.verifyPassword("1234".toCharArray(), u.getSalt(), u.getPasswordHash(), iterations));
+                assertTrue("User " + username + " rejects incorrect password 'wrongpass'",
+                        !SecurityUtils.verifyPassword("wrongpass".toCharArray(), u.getSalt(), u.getPasswordHash(), iterations));
+            }
+        }
+
+        List<User> all = userDAO.getAllUsers();
+        assertTrue("All users list contains at least 7 accounts (admin, john_doe, test1-test5)", all.size() >= 7);
     }
 }

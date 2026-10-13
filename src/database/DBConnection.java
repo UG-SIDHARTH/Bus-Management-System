@@ -28,6 +28,8 @@ public class DBConnection {
 
     private static final BlockingQueue<Connection> pool = new ArrayBlockingQueue<>(MAX_POOL_SIZE);
     private static final AtomicInteger createdCount = new AtomicInteger(0);
+    private static volatile long lastFailureTime = 0;
+    private static final long FAILURE_COOLDOWN_MS = 4000;
 
     static {
         try {
@@ -45,7 +47,7 @@ public class DBConnection {
         String port = getEnvOrDefault("DB_PORT", DEFAULT_PORT);
         String dbName = getEnvOrDefault("DB_NAME", DEFAULT_DB);
         return "jdbc:mysql://" + host + ":" + port + "/" + dbName +
-                "?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000";
+                "?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&connectTimeout=2000&socketTimeout=10000";
     }
 
     private static String getUser() {
@@ -57,9 +59,15 @@ public class DBConnection {
     }
 
     private static Connection createPhysicalConnection() {
+        if (System.currentTimeMillis() - lastFailureTime < FAILURE_COOLDOWN_MS) {
+            return null;
+        }
         try {
-            return DriverManager.getConnection(getJdbcUrl(), getUser(), getPassword());
+            Connection con = DriverManager.getConnection(getJdbcUrl(), getUser(), getPassword());
+            lastFailureTime = 0;
+            return con;
         } catch (SQLException e) {
+            lastFailureTime = System.currentTimeMillis();
             System.err.println("[DBConnection] Failed to open physical connection: " + e.getMessage());
             return null;
         }
@@ -87,8 +95,8 @@ public class DBConnection {
             }
         }
 
-        // 3. If still null, wait up to LEASE_TIMEOUT_MS for a connection to be returned
-        if (physicalCon == null) {
+        // 3. If still null, only wait for a leased connection if there are active connections checked out
+        if (physicalCon == null && createdCount.get() > 0) {
             try {
                 physicalCon = pool.poll(LEASE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
