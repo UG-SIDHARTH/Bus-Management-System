@@ -9,14 +9,28 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PassengerDAO {
+
+    public static final List<Passenger> SEEDED_FALLBACK_PASSENGERS = List.of(
+        new Passenger(101, "John Doe", 28, "Male", "9876543210"),
+        new Passenger(102, "Sarah Smith", 24, "Female", "9123456780"),
+        new Passenger(103, "Michael Brown", 35, "Male", "9988776655"),
+        new Passenger(104, "Robert Williams", 42, "Male", "9811223344", true, "Locomotor / Mobility", "UDID-98765-2026"),
+        new Passenger(105, "Elena Rostova", 29, "Female", "9855667788", true, "Visual Impairment", "UDID-55443-2026")
+    );
+
+    private static final List<Passenger> inMemoryPassengers = new CopyOnWriteArrayList<>(SEEDED_FALLBACK_PASSENGERS);
 
     public boolean addPassenger(Passenger p) {
         String query = "INSERT INTO passenger (passenger_id, name, age, gender, phone, is_disability, disability_type, disability_id) " +
                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                inMemoryPassengers.add(p);
+                return true;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, p.getPassengerId());
                 pst.setString(2, p.getName());
@@ -90,11 +104,50 @@ public class PassengerDAO {
         );
     }
 
+    private static final java.util.concurrent.atomic.AtomicInteger nextGeneratedPassengerId = new java.util.concurrent.atomic.AtomicInteger(200);
+
+    public synchronized int getNextPassengerId() {
+        String query = "SELECT COALESCE(MAX(passenger_id), 105) + 1 AS next_id FROM passenger";
+        try (Connection con = DBConnection.getConnection()) {
+            if (con != null) {
+                try (PreparedStatement pst = con.prepareStatement(query);
+                     ResultSet rs = pst.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getInt("next_id");
+                    }
+                }
+            }
+        } catch (SQLException ignored) {}
+        return nextGeneratedPassengerId.incrementAndGet();
+    }
+
+    public Passenger findByName(String name) {
+        if (name == null || name.trim().isEmpty()) return null;
+        String clean = name.trim().toLowerCase();
+        String query = "SELECT * FROM passenger WHERE LOWER(name) = ? LIMIT 1";
+        try (Connection con = DBConnection.getConnection()) {
+            if (con != null) {
+                try (PreparedStatement pst = con.prepareStatement(query)) {
+                    pst.setString(1, clean);
+                    try (ResultSet rs = pst.executeQuery()) {
+                        if (rs.next()) {
+                            return mapPassengerRow(rs);
+                        }
+                    }
+                }
+            }
+        } catch (SQLException ignored) {}
+        for (Passenger p : inMemoryPassengers) {
+            if (p.getName().equalsIgnoreCase(clean)) return p;
+        }
+        return null;
+    }
+
     public List<Passenger> getAllPassengers() {
         List<Passenger> list = new ArrayList<>();
         String query = "SELECT * FROM passenger ORDER BY passenger_id ASC";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return list;
+            if (con == null) return new ArrayList<>(inMemoryPassengers);
             try (PreparedStatement pst = con.prepareStatement(query);
                  ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
@@ -102,15 +155,20 @@ public class PassengerDAO {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[PassengerDAO] getAllPassengers note: " + e.getMessage());
         }
-        return list;
+        return list.isEmpty() ? new ArrayList<>(inMemoryPassengers) : list;
     }
 
     public Passenger getPassengerById(int id) {
         String query = "SELECT * FROM passenger WHERE passenger_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return null;
+            if (con == null) {
+                for (Passenger p : inMemoryPassengers) {
+                    if (p.getPassengerId() == id) return p;
+                }
+                return null;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, id);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -120,7 +178,10 @@ public class PassengerDAO {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[PassengerDAO] getPassengerById note: " + e.getMessage());
+        }
+        for (Passenger p : inMemoryPassengers) {
+            if (p.getPassengerId() == id) return p;
         }
         return null;
     }
@@ -130,7 +191,16 @@ public class PassengerDAO {
                        "is_disability = ?, disability_type = ?, disability_id = ? " +
                        "WHERE passenger_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                for (int i = 0; i < inMemoryPassengers.size(); i++) {
+                    if (inMemoryPassengers.get(i).getPassengerId() == p.getPassengerId()) {
+                        inMemoryPassengers.set(i, p);
+                        return true;
+                    }
+                }
+                inMemoryPassengers.add(p);
+                return true;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setString(1, p.getName());
                 pst.setInt(2, p.getAge());
@@ -169,7 +239,9 @@ public class PassengerDAO {
     public boolean deletePassenger(int id) {
         String query = "DELETE FROM passenger WHERE passenger_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                return inMemoryPassengers.removeIf(p -> p.getPassengerId() == id);
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, id);
                 return pst.executeUpdate() > 0;

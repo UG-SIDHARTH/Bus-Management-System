@@ -5,6 +5,8 @@ import model.Booking;
 import model.Bus;
 import model.Passenger;
 import model.User;
+import dao.BookingDAO;
+import dao.PassengerDAO;
 import dao.UserDAO;
 import web.SecurityUtils;
 import web.SessionManager;
@@ -58,6 +60,7 @@ public class TestSuite {
         testMultiSeatBookingAggregation();
         testGenderOccupancyMapping();
         testTestUserAccounts();
+        testPerSeatPassengerMultiBooking();
 
         System.out.println("==================================================");
         System.out.println(" TEST RESULTS SUMMARY:");
@@ -313,5 +316,76 @@ public class TestSuite {
 
         List<User> all = userDAO.getAllUsers();
         assertTrue("All users list contains at least 7 accounts (admin, john_doe, test1-test5)", all.size() >= 7);
+    }
+
+    private static void testPerSeatPassengerMultiBooking() {
+        System.out.println("\n--- 13. Testing Per-Seat Passenger Names & Individual Concessions ---");
+
+        PassengerDAO passengerDAO = new PassengerDAO();
+        BookingDAO bookingDAO = new BookingDAO();
+
+        // Register 3 individual passengers with different names and disability statuses
+        int id1 = passengerDAO.getNextPassengerId();
+        Passenger p1 = new Passenger(id1, "Alice Cooper", 28, "Female", "9112233445", false, null, null);
+        passengerDAO.addPassenger(p1);
+
+        int id2 = passengerDAO.getNextPassengerId();
+        Passenger p2 = new Passenger(id2, "Bob Builder", 34, "Male", "9223344556", true, "Locomotor Disability", "UDID-BOB-99");
+        passengerDAO.addPassenger(p2);
+
+        int id3 = passengerDAO.getNextPassengerId();
+        Passenger p3 = new Passenger(id3, "Charlie Chaplin", 45, "Male", "9334455667", false, null, null);
+        passengerDAO.addPassenger(p3);
+
+        assertTrue("Passenger 1 Alice Cooper registered", passengerDAO.findByName("Alice Cooper") != null);
+        assertTrue("Passenger 2 Bob Builder registered with PwD", passengerDAO.findByName("Bob Builder") != null && passengerDAO.findByName("Bob Builder").isDisability());
+        assertTrue("Passenger 3 Charlie Chaplin registered", passengerDAO.findByName("Charlie Chaplin") != null);
+
+        // Simulate multi-seat booking for user 2 on bus 1 (Fare: $50.00 each)
+        double baseFare = 50.00;
+        List<Booking> batch = new ArrayList<>();
+
+        // Seat 21 -> Alice Cooper ($50.00 standard)
+        Booking b1 = new Booking(0, id1, 2, 1, 21, "2026-10-20", baseFare, "CONFIRMED", 0.0, false);
+        b1.setPassengerName(p1.getName()); b1.setPassengerGender(p1.getGender()); b1.setBusName("Express Volvo AC");
+        batch.add(b1);
+
+        // Seat 22 -> Bob Builder ($25.00 with 50% concession)
+        Booking b2 = new Booking(0, id2, 2, 1, 22, "2026-10-20", baseFare * 0.50, "CONFIRMED", baseFare * 0.50, true);
+        b2.setPassengerName(p2.getName()); b2.setPassengerGender(p2.getGender()); b2.setPassengerDisability(true); b2.setBusName("Express Volvo AC");
+        batch.add(b2);
+
+        // Seat 23 -> Charlie Chaplin ($50.00 standard)
+        Booking b3 = new Booking(0, id3, 2, 1, 23, "2026-10-20", baseFare, "CONFIRMED", 0.0, false);
+        b3.setPassengerName(p3.getName()); b3.setPassengerGender(p3.getGender()); b3.setBusName("Express Volvo AC");
+        batch.add(b3);
+
+        List<Booking> saved = bookingDAO.addBookingsBatch(batch);
+        assertEquals("Batch of 3 distinct passenger bookings saved", 3, saved.size());
+
+        // Verify individual seats preserve distinct passenger names
+        assertEquals("Seat 21 belongs to Alice Cooper", "Alice Cooper", saved.get(0).getPassengerName());
+        assertEquals("Seat 22 belongs to Bob Builder", "Bob Builder", saved.get(1).getPassengerName());
+        assertEquals("Seat 23 belongs to Charlie Chaplin", "Charlie Chaplin", saved.get(2).getPassengerName());
+
+        // Verify individual fares and concessions
+        assertEquals("Seat 21 fare is $50.00", 50.00, saved.get(0).getFare());
+        assertEquals("Seat 22 fare is $25.00 (concession)", 25.00, saved.get(1).getFare());
+        assertTrue("Seat 22 has isConcession flag true", saved.get(1).isConcession());
+        assertEquals("Seat 23 fare is $50.00", 50.00, saved.get(2).getFare());
+
+        double totalBatchFare = saved.stream().mapToDouble(Booking::getFare).sum();
+        assertEquals("Total payable for 3 seats is $125.00", 125.00, totalBatchFare);
+
+        // Check occupancy detection
+        assertTrue("Seat 21 is marked booked", bookingDAO.isSeatBooked(1, 21));
+        assertTrue("Seat 22 is marked booked", bookingDAO.isSeatBooked(1, 22));
+        assertTrue("Seat 23 is marked booked", bookingDAO.isSeatBooked(1, 23));
+
+        // Check gender map reflects individual passenger genders
+        Map<Integer, String> genderMap = bookingDAO.getBookedSeatsWithGender(1);
+        assertEquals("Seat 21 gender is Female", "Female", genderMap.get(21));
+        assertEquals("Seat 22 gender is Male", "Male", genderMap.get(22));
+        assertEquals("Seat 23 gender is Male", "Male", genderMap.get(23));
     }
 }

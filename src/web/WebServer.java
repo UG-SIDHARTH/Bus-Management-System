@@ -729,7 +729,6 @@ public class WebServer {
             }
 
             try {
-                int passengerId = Integer.parseInt(form.get("passenger_id"));
                 int busId = Integer.parseInt(form.get("bus_id"));
                 String date = form.get("booking_date");
 
@@ -775,27 +774,97 @@ public class WebServer {
                     }
                 }
 
-                // Check disability & concession status
-                Passenger passenger = passengerDAO.getPassengerById(passengerId);
-                boolean isConcession = "true".equalsIgnoreCase(form.get("is_concession"));
-                if (passenger != null && passenger.isDisability()) {
-                    isConcession = true;
+                // Global / default passenger if selected
+                Integer globalPassengerId = null;
+                if (form.containsKey("passenger_id") && !form.get("passenger_id").trim().isEmpty()) {
+                    try {
+                        globalPassengerId = Integer.parseInt(form.get("passenger_id").trim());
+                    } catch (Exception ignored) {}
+                }
+                Passenger globalPassenger = globalPassengerId != null ? passengerDAO.getPassengerById(globalPassengerId) : null;
+                boolean globalConcession = "true".equalsIgnoreCase(form.get("is_concession"));
+                if (globalPassenger != null && globalPassenger.isDisability()) {
+                    globalConcession = true;
                 }
 
                 double baseFare = bus.getFare();
-                double concessionPerSeat = isConcession ? (baseFare * 0.50) : 0.0;
-                double farePerSeat = baseFare - concessionPerSeat;
-
-                // Create bookings batch
                 List<Booking> batch = new ArrayList<>();
+                int totalConcessionsApplied = 0;
+
+                // Process each seat with its own passenger identity
                 for (int seatNumber : seatsToBook) {
-                    batch.add(new Booking(0, passengerId, session.getUserId(), busId, seatNumber, date, farePerSeat, "CONFIRMED", concessionPerSeat, isConcession));
+                    String seatName = form.get("passenger_name_" + seatNumber);
+                    String seatGender = form.get("passenger_gender_" + seatNumber);
+                    String seatAgeStr = form.get("passenger_age_" + seatNumber);
+                    String seatPhone = form.get("passenger_phone_" + seatNumber);
+                    boolean seatPwd = "true".equalsIgnoreCase(form.get("passenger_pwd_" + seatNumber));
+
+                    Passenger seatPassenger = null;
+
+                    if (seatName != null && !seatName.trim().isEmpty()) {
+                        seatName = seatName.trim();
+                        seatPassenger = passengerDAO.findByName(seatName);
+                        if (seatPassenger == null) {
+                            int nextId = passengerDAO.getNextPassengerId();
+                            int age = 25;
+                            try {
+                                if (seatAgeStr != null && !seatAgeStr.trim().isEmpty()) {
+                                    age = Integer.parseInt(seatAgeStr.trim());
+                                }
+                            } catch (Exception ignored) {}
+                            String gender = (seatGender != null && !seatGender.trim().isEmpty()) ? seatGender.trim() : "Male";
+                            String phone = (seatPhone != null && !seatPhone.trim().isEmpty()) ? seatPhone.trim() : (globalPassenger != null ? globalPassenger.getPhoneNumber() : "9876543210");
+                            boolean isDis = seatPwd;
+                            String disType = isDis ? "Disability Concession Holder" : null;
+                            String disId = isDis ? ("DIS-" + nextId) : null;
+
+                            seatPassenger = new Passenger(nextId, seatName, age, gender, phone, isDis, disType, disId);
+                            passengerDAO.addPassenger(seatPassenger);
+                        } else {
+                            if (seatPwd && !seatPassenger.isDisability()) {
+                                seatPassenger.setDisability(true);
+                                if (seatPassenger.getDisabilityType() == null) seatPassenger.setDisabilityType("Disability Concession Holder");
+                            }
+                            if (seatGender != null && !seatGender.trim().isEmpty()) {
+                                seatPassenger.setGender(seatGender.trim());
+                            }
+                        }
+                    } else if (globalPassenger != null) {
+                        seatPassenger = globalPassenger;
+                    } else {
+                        int nextId = passengerDAO.getNextPassengerId();
+                        String fallbackName = session.getUsername() != null ? session.getUsername() : ("Passenger (Seat #" + seatNumber + ")");
+                        seatPassenger = new Passenger(nextId, fallbackName, 25, "Male", "9876543210", globalConcession, globalConcession ? "General Concession" : null, null);
+                        passengerDAO.addPassenger(seatPassenger);
+                    }
+
+                    boolean seatIsConcession = seatPwd || (seatPassenger != null && seatPassenger.isDisability()) || globalConcession;
+                    double concessionForSeat = seatIsConcession ? (baseFare * 0.50) : 0.0;
+                    double fareForSeat = baseFare - concessionForSeat;
+                    if (seatIsConcession) totalConcessionsApplied++;
+
+                    int resolvedPassengerId = seatPassenger != null ? seatPassenger.getPassengerId() : (globalPassengerId != null ? globalPassengerId : 101);
+                    Booking b = new Booking(0, resolvedPassengerId, session.getUserId(), busId, seatNumber, date, fareForSeat, "CONFIRMED", concessionForSeat, seatIsConcession);
+                    if (seatPassenger != null) {
+                        b.setPassengerName(seatPassenger.getName());
+                        b.setPassengerGender(seatPassenger.getGender());
+                        b.setPassengerPhone(seatPassenger.getPhoneNumber());
+                        b.setPassengerAge(seatPassenger.getAge());
+                        b.setPassengerDisability(seatPassenger.isDisability());
+                        b.setDisabilityType(seatPassenger.getDisabilityType());
+                        b.setDisabilityId(seatPassenger.getDisabilityId());
+                    }
+                    b.setBusName(bus.getBusName());
+                    b.setSource(bus.getSource());
+                    b.setDestination(bus.getDestination());
+
+                    batch.add(b);
                 }
 
                 List<Booking> saved = bookingDAO.addBookingsBatch(batch);
                 if (!saved.isEmpty()) {
                     int primaryTicketId = saved.get(0).getBookingId();
-                    String msg = "Reservation confirmed for " + saved.size() + " seat(s)!" + (isConcession ? " (50% Disability Concession Applied)" : "");
+                    String msg = "Reservation confirmed for " + saved.size() + " seat(s) with individual passenger details!" + (totalConcessionsApplied > 0 ? " (" + totalConcessionsApplied + " Concession(s) Applied)" : "");
                     WebUtils.redirect(exchange, "/tickets?id=" + primaryTicketId + "&msg=" + encode(msg));
                 } else {
                     WebUtils.redirect(exchange, "/bookings?bus_id=" + busId + "&err=" + encode("Failed to save booking."));

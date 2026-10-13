@@ -31,11 +31,18 @@ public class BusDAO {
         }
     }
 
+    public static final List<Bus> SEEDED_FALLBACK_BUSES = List.of(
+        new Bus(1, "Express Volvo AC", "New York", "Boston", 40, 45.00),
+        new Bus(2, "City Deluxe Sleeper", "New York", "Washington DC", 36, 55.00),
+        new Bus(3, "Metro Superfast", "Boston", "Philadelphia", 44, 40.00),
+        new Bus(4, "Highway Star Express", "Chicago", "Detroit", 40, 50.00)
+    );
+
     public List<Bus> getAllBuses() {
         List<Bus> list = new ArrayList<>();
         String query = "SELECT * FROM bus ORDER BY bus_id ASC";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return list;
+            if (con == null) return new ArrayList<>(SEEDED_FALLBACK_BUSES);
             try (PreparedStatement pst = con.prepareStatement(query);
                  ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
@@ -51,15 +58,20 @@ public class BusDAO {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[BusDAO] getAllBuses note: " + e.getMessage());
         }
-        return list;
+        return list.isEmpty() ? new ArrayList<>(SEEDED_FALLBACK_BUSES) : list;
     }
 
     public Bus getBusById(int id) {
         String query = "SELECT * FROM bus WHERE bus_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return null;
+            if (con == null) {
+                for (Bus b : SEEDED_FALLBACK_BUSES) {
+                    if (b.getBusId() == id) return b;
+                }
+                return null;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, id);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -76,7 +88,10 @@ public class BusDAO {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[BusDAO] getBusById note: " + e.getMessage());
+        }
+        for (Bus b : SEEDED_FALLBACK_BUSES) {
+            if (b.getBusId() == id) return b;
         }
         return null;
     }

@@ -847,14 +847,18 @@ public class WebViews {
         sb.append("        </select>");
         sb.append("      </div>");
 
-        // Passenger selector with PwD attributes embedded
+        // Primary / Default Passenger Selector
         sb.append("      <div class=\"form-group\">");
-        sb.append("        <label for=\"passenger_id\">Passenger Identity</label>");
+        sb.append("        <label for=\"passenger_id\">Primary Booker / Default Passenger <span class=\"text-muted\" style=\"font-weight:normal;\">(Optional)</span></label>");
         if (!passengers.isEmpty()) {
-            sb.append("        <select id=\"passenger_id\" name=\"passenger_id\" required onchange=\"handlePassengerChange();\">");
-            sb.append("          <option value=\"\">-- Choose Passenger --</option>");
+            sb.append("        <select id=\"passenger_id\" name=\"passenger_id\" onchange=\"handlePrimaryPassengerChange();\">");
+            sb.append("          <option value=\"\">-- Choose Default Booker (Optional) --</option>");
             for (Passenger p : passengers) {
                 sb.append("          <option value=\"").append(p.getPassengerId()).append("\" ");
+                sb.append("            data-name=\"").append(WebUtils.escapeHtml(p.getName())).append("\" ");
+                sb.append("            data-gender=\"").append(WebUtils.escapeHtml(p.getGender())).append("\" ");
+                sb.append("            data-age=\"").append(p.getAge()).append("\" ");
+                sb.append("            data-phone=\"").append(WebUtils.escapeHtml(p.getPhoneNumber() != null ? p.getPhoneNumber() : "")).append("\" ");
                 sb.append("            data-pwd=\"").append(p.isDisability()).append("\" ");
                 sb.append("            data-pwd-type=\"").append(WebUtils.escapeHtml(p.getDisabilityType() != null ? p.getDisabilityType() : "")).append("\" ");
                 sb.append("            data-pwd-id=\"").append(WebUtils.escapeHtml(p.getDisabilityId() != null ? p.getDisabilityId() : "")).append("\">");
@@ -865,8 +869,9 @@ public class WebViews {
                 sb.append("</option>");
             }
             sb.append("        </select>");
+            sb.append("        <small class=\"text-muted\" style=\"display:block;margin-top:0.25rem;\">Select to auto-populate the first seat, or type each person's details directly per seat below.</small>");
         } else {
-            sb.append("        <input type=\"number\" id=\"passenger_id\" name=\"passenger_id\" placeholder=\"Enter Passenger ID (e.g. 101)\" required />");
+            sb.append("        <input type=\"number\" id=\"passenger_id\" name=\"passenger_id\" placeholder=\"Enter Passenger ID (e.g. 101)\" />");
         }
         sb.append("      </div>");
 
@@ -878,21 +883,32 @@ public class WebViews {
         sb.append("        </div>");
         sb.append("      </div>");
 
+        // Individual Passenger Details per Selected Seat Section
+        sb.append("      <div id=\"per_seat_passengers_section\" class=\"per-seat-passengers-section\">");
+        sb.append("        <div class=\"section-subheading\">");
+        sb.append("          <span>👤 Passenger Details for Each Seat</span>");
+        sb.append("          <small class=\"text-muted\">Enter individual name, gender, age &amp; concession for each selected seat</small>");
+        sb.append("        </div>");
+        sb.append("        <div id=\"per_seat_passengers_container\">");
+        sb.append("          <div class=\"text-muted-box\" id=\"seat_prompt_box\">👈 Click any seat on the floorplan to enter passenger details for that seat.</div>");
+        sb.append("        </div>");
+        sb.append("      </div>");
+
         // Travel Date
         sb.append("      <div class=\"form-group\">");
         sb.append("        <label for=\"booking_date\">Travel Date</label>");
         sb.append("        <input type=\"date\" id=\"booking_date\" name=\"booking_date\" value=\"").append(LocalDate.now().toString()).append("\" required />");
         sb.append("      </div>");
 
-        // Disability Concession Checkbox & Indicator
+        // Global / Master Disability Concession Checkbox & Indicator
         sb.append("      <div class=\"form-group concession-box\">");
         sb.append("        <label class=\"concession-toggle-label\">");
         sb.append("          <input type=\"checkbox\" id=\"concession_checkbox\" name=\"is_concession\" value=\"true\" onchange=\"recalculateFare();\" />");
-        sb.append("          <span>♿ <strong>Apply 50% Disability Concession</strong></span>");
+        sb.append("          <span>♿ <strong>Apply 50% Disability Concession (All Seats)</strong></span>");
         sb.append("        </label>");
-        sb.append("        <small class=\"text-muted\" style=\"display:block;margin-top:0.3rem;\">Special transportation welfare discount for passengers with verified disabilities.</small>");
+        sb.append("        <small class=\"text-muted\" style=\"display:block;margin-top:0.3rem;\">Or check individual PwD concession per seat in the cards above.</small>");
         sb.append("        <div id=\"pwd_info_banner\" style=\"display:none;margin-top:0.5rem;\" class=\"badge badge-pwd\">");
-        sb.append("          Verified PwD Passenger: <span id=\"pwd_detail_text\"></span>");
+        sb.append("          Verified PwD Booker: <span id=\"pwd_detail_text\"></span>");
         sb.append("        </div>");
         sb.append("      </div>");
 
@@ -986,7 +1002,7 @@ public class WebViews {
         sb.append("  </div>");
         sb.append("</div>");
 
-        // Embedded JSON and Client-side JavaScript for Multi-Seat selection, live gender neighbor radar, and fare calculation
+        // Embedded JSON and Client-side JavaScript for Multi-Seat selection, live gender neighbor radar, per-seat passenger cards, and fare calculation
         sb.append("<script>");
         sb.append("  var currentUnitFare = ").append(currentBus != null ? currentBus.getFare() : 0.0).append(";");
         sb.append("  var selectedSeats = [];");
@@ -1001,19 +1017,218 @@ public class WebViews {
         }
         sb.append("  };");
 
+        // Registered passenger database for quick autofill
+        sb.append("  var registeredPassengers = [");
+        if (passengers != null) {
+            boolean firstP = true;
+            for (Passenger p : passengers) {
+                if (!firstP) sb.append(",");
+                String safeName = p.getName() != null ? p.getName().replace("'", "\\'").replace("\"", "\\\"") : "";
+                String safeGender = p.getGender() != null ? p.getGender().replace("'", "\\'") : "Male";
+                String safePhone = p.getPhoneNumber() != null ? p.getPhoneNumber().replace("'", "\\'") : "";
+                String safeType = p.getDisabilityType() != null ? p.getDisabilityType().replace("'", "\\'") : "";
+                String safeId = p.getDisabilityId() != null ? p.getDisabilityId().replace("'", "\\'") : "";
+                sb.append("{id:").append(p.getPassengerId())
+                  .append(",name:'").append(safeName).append("'")
+                  .append(",gender:'").append(safeGender).append("'")
+                  .append(",age:").append(p.getAge())
+                  .append(",phone:'").append(safePhone).append("'")
+                  .append(",isPwd:").append(p.isDisability())
+                  .append(",pwdType:'").append(safeType).append("'")
+                  .append(",pwdId:'").append(safeId).append("'}");
+                firstP = false;
+            }
+        }
+        sb.append("  ];");
+
+        sb.append("  var seatPassengerData = {};");
+
+        sb.append("  function escapeHtml(str) {");
+        sb.append("    if (!str) return '';");
+        sb.append("    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');");
+        sb.append("  }");
+
+        // Keep DOM values synchronized with internal state
+        sb.append("  function syncDomToState() {");
+        sb.append("    for (var i = 0; i < selectedSeats.length; i++) {");
+        sb.append("      var s = selectedSeats[i];");
+        sb.append("      var nInput = document.getElementById('pname_' + s);");
+        sb.append("      var gSelect = document.getElementById('pgender_' + s);");
+        sb.append("      var aInput = document.getElementById('page_' + s);");
+        sb.append("      var pChk = document.getElementById('ppwd_' + s);");
+        sb.append("      if (nInput) {");
+        sb.append("        if (!seatPassengerData[s]) seatPassengerData[s] = {};");
+        sb.append("        seatPassengerData[s].name = nInput.value;");
+        sb.append("        if (gSelect) seatPassengerData[s].gender = gSelect.value;");
+        sb.append("        if (aInput) seatPassengerData[s].age = aInput.value;");
+        sb.append("        if (pChk) seatPassengerData[s].isPwd = pChk.checked;");
+        sb.append("      }");
+        sb.append("    }");
+        sb.append("  }");
+
         // Toggle multiple seats
         sb.append("  function toggleSeat(seatNum) {");
+        sb.append("    syncDomToState();");
         sb.append("    var idx = selectedSeats.indexOf(seatNum);");
         sb.append("    var btn = document.getElementById('seat-btn-' + seatNum);");
         sb.append("    if (idx >= 0) {");
         sb.append("      selectedSeats.splice(idx, 1);");
+        sb.append("      delete seatPassengerData[seatNum];");
         sb.append("      if (btn) btn.classList.remove('selected');");
         sb.append("    } else {");
         sb.append("      selectedSeats.push(seatNum);");
         sb.append("      if (btn) btn.classList.add('selected');");
+        sb.append("      if (!seatPassengerData[seatNum]) {");
+        sb.append("        var pSel = document.getElementById('passenger_id');");
+        sb.append("        var opt = pSel && pSel.selectedIndex >= 0 ? pSel.options[pSel.selectedIndex] : null;");
+        sb.append("        if (selectedSeats.length === 1 && opt && opt.value) {");
+        sb.append("          seatPassengerData[seatNum] = {");
+        sb.append("            name: opt.getAttribute('data-name') || '',");
+        sb.append("            gender: opt.getAttribute('data-gender') || 'Male',");
+        sb.append("            age: opt.getAttribute('data-age') || '25',");
+        sb.append("            phone: opt.getAttribute('data-phone') || '',");
+        sb.append("            isPwd: opt.getAttribute('data-pwd') === 'true'");
+        sb.append("          };");
+        sb.append("        } else {");
+        sb.append("          seatPassengerData[seatNum] = { name: '', gender: 'Male', age: '25', phone: '', isPwd: false };");
+        sb.append("        }");
+        sb.append("      }");
         sb.append("    }");
         sb.append("    updateSelectedSeatsDisplay();");
+        sb.append("    renderSeatPassengerCards();");
         sb.append("    updateNearestSeatInfo(seatNum);");
+        sb.append("    recalculateFare();");
+        sb.append("  }");
+
+        sb.append("  function saveSeatField(seatNum, field, val) {");
+        sb.append("    if (!seatPassengerData[seatNum]) {");
+        sb.append("      seatPassengerData[seatNum] = { name: '', gender: 'Male', age: '25', phone: '', isPwd: false };");
+        sb.append("    }");
+        sb.append("    seatPassengerData[seatNum][field] = val;");
+        sb.append("    if (field === 'isPwd') { recalculateFare(); }");
+        sb.append("  }");
+
+        // Autofill an individual seat from registered passengers list
+        sb.append("  function autofillSeat(seatNum, pIdStr) {");
+        sb.append("    if (!pIdStr) return;");
+        sb.append("    var pId = parseInt(pIdStr);");
+        sb.append("    var p = null;");
+        sb.append("    for (var i = 0; i < registeredPassengers.length; i++) {");
+        sb.append("      if (registeredPassengers[i].id === pId) { p = registeredPassengers[i]; break; }");
+        sb.append("    }");
+        sb.append("    if (!p) return;");
+        sb.append("    seatPassengerData[seatNum] = {");
+        sb.append("      name: p.name,");
+        sb.append("      gender: p.gender || 'Male',");
+        sb.append("      age: p.age || '25',");
+        sb.append("      phone: p.phone || '',");
+        sb.append("      isPwd: p.isPwd === true");
+        sb.append("    };");
+        sb.append("    var nameInput = document.getElementById('pname_' + seatNum);");
+        sb.append("    var genderSelect = document.getElementById('pgender_' + seatNum);");
+        sb.append("    var ageInput = document.getElementById('page_' + seatNum);");
+        sb.append("    var pwdChk = document.getElementById('ppwd_' + seatNum);");
+        sb.append("    if (nameInput) nameInput.value = p.name;");
+        sb.append("    if (genderSelect) genderSelect.value = p.gender || 'Male';");
+        sb.append("    if (ageInput) ageInput.value = p.age || '25';");
+        sb.append("    if (pwdChk) pwdChk.checked = p.isPwd === true;");
+        sb.append("    recalculateFare();");
+        sb.append("    updateNearestSeatInfo(seatNum);");
+        sb.append("  }");
+
+        // Handle primary passenger selection
+        sb.append("  function handlePrimaryPassengerChange() {");
+        sb.append("    syncDomToState();");
+        sb.append("    var sel = document.getElementById('passenger_id');");
+        sb.append("    if (!sel) return;");
+        sb.append("    var opt = sel.options[sel.selectedIndex];");
+        sb.append("    if (!opt || !opt.value) return;");
+        sb.append("    var name = opt.getAttribute('data-name') || '';");
+        sb.append("    var gender = opt.getAttribute('data-gender') || 'Male';");
+        sb.append("    var age = opt.getAttribute('data-age') || '25';");
+        sb.append("    var phone = opt.getAttribute('data-phone') || '';");
+        sb.append("    var isPwd = opt.getAttribute('data-pwd') === 'true';");
+        sb.append("    var pwdType = opt.getAttribute('data-pwd-type') || '';");
+        sb.append("    var pwdId = opt.getAttribute('data-pwd-id') || '';");
+        sb.append("    var banner = document.getElementById('pwd_info_banner');");
+        sb.append("    var bannerText = document.getElementById('pwd_detail_text');");
+        sb.append("    if (isPwd) {");
+        sb.append("      if (banner) { banner.style.display = 'inline-block'; bannerText.textContent = pwdType + (pwdId ? ' (' + pwdId + ')' : ''); }");
+        sb.append("    } else {");
+        sb.append("      if (banner) banner.style.display = 'none';");
+        sb.append("    }");
+        sb.append("    if (selectedSeats.length > 0) {");
+        sb.append("      var firstSeat = selectedSeats[0];");
+        sb.append("      if (!seatPassengerData[firstSeat] || !seatPassengerData[firstSeat].name) {");
+        sb.append("        seatPassengerData[firstSeat] = { name: name, gender: gender, age: age, phone: phone, isPwd: isPwd };");
+        sb.append("        var nInput = document.getElementById('pname_' + firstSeat);");
+        sb.append("        var gSelect = document.getElementById('pgender_' + firstSeat);");
+        sb.append("        var aInput = document.getElementById('page_' + firstSeat);");
+        sb.append("        var pChk = document.getElementById('ppwd_' + firstSeat);");
+        sb.append("        if (nInput) nInput.value = name;");
+        sb.append("        if (gSelect) gSelect.value = gender;");
+        sb.append("        if (aInput) aInput.value = age;");
+        sb.append("        if (pChk) pChk.checked = isPwd;");
+        sb.append("      }");
+        sb.append("    }");
+        sb.append("    recalculateFare();");
+        sb.append("  }");
+
+        // Render individual passenger card for each selected seat
+        sb.append("  function renderSeatPassengerCards() {");
+        sb.append("    var container = document.getElementById('per_seat_passengers_container');");
+        sb.append("    if (!container) return;");
+        sb.append("    if (selectedSeats.length === 0) {");
+        sb.append("      container.innerHTML = '<div class=\"text-muted-box\" id=\"seat_prompt_box\">👈 Click any available seat(s) on the bus floorplan to enter passenger details.</div>';");
+        sb.append("      return;");
+        sb.append("    }");
+        sb.append("    selectedSeats.sort(function(a,b){return a-b;});");
+        sb.append("    var html = '';");
+        sb.append("    for (var i = 0; i < selectedSeats.length; i++) {");
+        sb.append("      var s = selectedSeats[i];");
+        sb.append("      var data = seatPassengerData[s] || { name: '', gender: 'Male', age: '25', phone: '', isPwd: false };");
+        sb.append("      html += '<div class=\"seat-passenger-card\" id=\"card_seat_' + s + '\">';");
+        sb.append("      html += '  <div class=\"seat-card-header\">';");
+        sb.append("      html += '    <div class=\"seat-card-title\"><span class=\"seat-badge-pill\">Seat #' + s + '</span> <span>Passenger Details</span></div>';");
+        sb.append("      if (registeredPassengers.length > 0) {");
+        sb.append("        html += '    <select class=\"autofill-select\" onchange=\"autofillSeat(' + s + ', this.value)\">';");
+        sb.append("        html += '      <option value=\"\">⚡ Autofill...</option>';");
+        sb.append("        for (var j = 0; j < registeredPassengers.length; j++) {");
+        sb.append("          var rp = registeredPassengers[j];");
+        sb.append("          html += '      <option value=\"' + rp.id + '\">' + escapeHtml(rp.name) + (rp.isPwd ? ' ♿' : '') + '</option>';");
+        sb.append("        }");
+        sb.append("        html += '    </select>';");
+        sb.append("      }");
+        sb.append("      html += '  </div>';");
+        sb.append("      html += '  <div class=\"seat-card-grid\">';");
+        sb.append("      html += '    <div>';");
+        sb.append("      html += '      <label style=\"font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;\">Person Full Name *</label>';");
+        sb.append("      html += '      <input type=\"text\" name=\"passenger_name_' + s + '\" id=\"pname_' + s + '\" value=\"' + escapeHtml(data.name) + '\" placeholder=\"Enter name for Seat #' + s + '\" required oninput=\"saveSeatField(' + s + ', \\'name\\', this.value)\" />';");
+        sb.append("      html += '    </div>';");
+        sb.append("      html += '    <div class=\"seat-card-row\">';");
+        sb.append("      html += '      <div style=\"flex:1;\">';");
+        sb.append("      html += '        <label style=\"font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;\">Gender</label>';");
+        sb.append("      html += '        <select name=\"passenger_gender_' + s + '\" id=\"pgender_' + s + '\" onchange=\"saveSeatField(' + s + ', \\'gender\\', this.value); updateNearestSeatInfo(' + s + ');\">';");
+        sb.append("      html += '          <option value=\"Male\"' + (data.gender === 'Male' ? ' selected' : '') + '>👨 Male</option>';");
+        sb.append("      html += '          <option value=\"Female\"' + (data.gender === 'Female' ? ' selected' : '') + '>👩 Female</option>';");
+        sb.append("      html += '          <option value=\"Other\"' + (data.gender === 'Other' ? ' selected' : '') + '>🧑 Other</option>';");
+        sb.append("      html += '        </select>';");
+        sb.append("      html += '      </div>';");
+        sb.append("      html += '      <div style=\"width:75px;\">';");
+        sb.append("      html += '        <label style=\"font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;\">Age</label>';");
+        sb.append("      html += '        <input type=\"number\" name=\"passenger_age_' + s + '\" id=\"page_' + s + '\" value=\"' + escapeHtml(data.age) + '\" min=\"1\" max=\"120\" oninput=\"saveSeatField(' + s + ', \\'age\\', this.value)\" />';");
+        sb.append("      html += '      </div>';");
+        sb.append("      html += '      <div style=\"display:flex;align-items:flex-end;padding-bottom:0.35rem;\">';");
+        sb.append("      html += '        <label class=\"concession-mini-label\" title=\"Apply 50% concession for Seat #' + s + '\">';");
+        sb.append("      html += '          <input type=\"checkbox\" name=\"passenger_pwd_' + s + '\" id=\"ppwd_' + s + '\" value=\"true\" ' + (data.isPwd ? 'checked' : '') + ' onchange=\"saveSeatField(' + s + ', \\'isPwd\\', this.checked)\" />';");
+        sb.append("      html += '          <span>♿ 50% PwD</span>';");
+        sb.append("      html += '        </label>';");
+        sb.append("      html += '      </div>';");
+        sb.append("      html += '    </div>';");
+        sb.append("      html += '  </div>';");
+        sb.append("      html += '</div>';");
+        sb.append("    }");
+        sb.append("    container.innerHTML = html;");
         sb.append("  }");
 
         // Update badges and hidden inputs
@@ -1092,36 +1307,25 @@ public class WebViews {
         sb.append("    radarBody.innerHTML = html;");
         sb.append("  }");
 
-        // Auto-detect passenger PwD status
-        sb.append("  function handlePassengerChange() {");
-        sb.append("    var sel = document.getElementById('passenger_id');");
-        sb.append("    if (!sel) return;");
-        sb.append("    var opt = sel.options[sel.selectedIndex];");
-        sb.append("    var isPwd = opt && opt.getAttribute('data-pwd') === 'true';");
-        sb.append("    var pwdType = opt ? opt.getAttribute('data-pwd-type') : '';");
-        sb.append("    var pwdId = opt ? opt.getAttribute('data-pwd-id') : '';");
-        sb.append("    var chk = document.getElementById('concession_checkbox');");
-        sb.append("    var banner = document.getElementById('pwd_info_banner');");
-        sb.append("    var bannerText = document.getElementById('pwd_detail_text');");
-        sb.append("    if (isPwd) {");
-        sb.append("      chk.checked = true;");
-        sb.append("      if (banner) { banner.style.display = 'inline-block'; bannerText.textContent = pwdType + (pwdId ? ' (' + pwdId + ')' : ''); }");
-        sb.append("    } else {");
-        sb.append("      if (banner) banner.style.display = 'none';");
-        sb.append("    }");
-        sb.append("    recalculateFare();");
-        sb.append("  }");
-
-        // Recalculate Fare with Multi-Seat and Concession
+        // Recalculate Fare with Multi-Seat and Concessions
         sb.append("  function recalculateFare() {");
+        sb.append("    syncDomToState();");
         sb.append("    var count = selectedSeats.length;");
-        sb.append("    var isConcession = document.getElementById('concession_checkbox').checked;");
+        sb.append("    var globalChk = document.getElementById('concession_checkbox');");
+        sb.append("    var globalConcession = globalChk ? globalChk.checked : false;");
         sb.append("    var subtotal = count * currentUnitFare;");
-        sb.append("    var discount = isConcession ? (subtotal * 0.50) : 0.0;");
-        sb.append("    var total = subtotal - discount;");
+        sb.append("    var discount = 0.0;");
+        sb.append("    for (var i = 0; i < selectedSeats.length; i++) {");
+        sb.append("      var s = selectedSeats[i];");
+        sb.append("      var isPwd = (seatPassengerData[s] && seatPassengerData[s].isPwd) || globalConcession;");
+        sb.append("      if (isPwd) {");
+        sb.append("        discount += (currentUnitFare * 0.50);");
+        sb.append("      }");
+        sb.append("    }");
+        sb.append("    var total = Math.max(0, subtotal - discount);");
         sb.append("    document.getElementById('seats_quantity_display').textContent = count;");
         sb.append("    var discRow = document.getElementById('discount_row');");
-        sb.append("    if (isConcession && count > 0) {");
+        sb.append("    if (discount > 0 && count > 0) {");
         sb.append("      discRow.style.display = 'flex';");
         sb.append("      document.getElementById('discount_amount_display').textContent = discount.toFixed(2);");
         sb.append("    } else {");
@@ -1132,9 +1336,19 @@ public class WebViews {
 
         // Handle submit
         sb.append("  function handleBookingSubmit(e) {");
+        sb.append("    syncDomToState();");
         sb.append("    if (selectedSeats.length === 0) {");
         sb.append("      alert('Please select at least one available seat on the visual bus floorplan.');");
         sb.append("      return false;");
+        sb.append("    }");
+        sb.append("    for (var i = 0; i < selectedSeats.length; i++) {");
+        sb.append("      var s = selectedSeats[i];");
+        sb.append("      var input = document.getElementById('pname_' + s);");
+        sb.append("      if (!input || !input.value.trim()) {");
+        sb.append("        alert('Please enter the passenger name for Seat #' + s + '.');");
+        sb.append("        if (input) input.focus();");
+        sb.append("        return false;");
+        sb.append("      }");
         sb.append("    }");
         sb.append("    var btn = document.getElementById('submitBookingBtn');");
         sb.append("    if (btn) {");
@@ -1395,7 +1609,7 @@ public class WebViews {
             sb.append("        <span class=\"station-label\">ORIGIN</span>");
             sb.append("        <span class=\"station-name\">").append(WebUtils.escapeHtml(ticket.getSource() != null ? ticket.getSource() : "N/A")).append("</span>");
             sb.append("      </div>");
-            sb.append("      <div class=\"route-arrow\">✈ ➔ 🚍</div>");
+            sb.append("      <div class=\"route-arrow\">🚍 ──➔ 🚏</div>");
             sb.append("      <div class=\"route-station\">");
             sb.append("        <span class=\"station-label\">DESTINATION</span>");
             sb.append("        <span class=\"station-name\">").append(WebUtils.escapeHtml(ticket.getDestination() != null ? ticket.getDestination() : "N/A")).append("</span>");
@@ -1448,7 +1662,7 @@ public class WebViews {
             sb.append("  <div class=\"pass-actions no-print\">");
             sb.append("    <button onclick=\"window.print();\" class=\"btn btn-primary\">🖨️ Print Boarding Pass</button>");
             sb.append("    <a href=\"/tickets/download?id=").append(ticket.getBookingId()).append("\" class=\"btn btn-secondary\">📥 Download Receipt (.txt)</a>");
-            sb.append("    <a href=\"/bookings\" class=\"btn btn-outline\">&larr; Back to Reservations</a>");
+            sb.append("    <a href=\"/bookings\" class=\"btn btn-outline-dark\">&larr; Back to Reservations</a>");
             sb.append("  </div>");
             sb.append("</div>");
         }
@@ -1686,6 +1900,23 @@ public class WebViews {
                 ".seat-tag-remove { cursor: pointer; font-weight: 800; opacity: 0.8; }" +
                 ".seat-tag-remove:hover { opacity: 1; color: #fca5a5; }" +
                 "" +
+                "/* Per-Seat Passenger Cards */" +
+                ".per-seat-passengers-section { margin-top: 1rem; margin-bottom: 1.25rem; }" +
+                ".section-subheading { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.75rem; }" +
+                ".section-subheading span { font-weight: 700; font-size: 0.95rem; color: #fff; }" +
+                ".text-muted-box { padding: 0.85rem 1rem; background: #0c1322; border: 1px dashed var(--border-color); border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); text-align: center; }" +
+                ".seat-passenger-card { background: #0c1322; border: 1px solid var(--border-color); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.85rem; transition: border-color 0.2s ease; }" +
+                ".seat-passenger-card:hover { border-color: rgba(99, 102, 241, 0.4); }" +
+                ".seat-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.4rem; }" +
+                ".seat-card-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.88rem; color: #a5b4fc; }" +
+                ".seat-badge-pill { background: var(--primary); color: #fff; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 800; }" +
+                ".autofill-select { width: auto; font-size: 0.75rem; padding: 0.25rem 0.5rem; background: #162238; border: 1px solid #2d3e58; border-radius: 6px; color: #cbd5e1; cursor: pointer; }" +
+                ".seat-card-grid { display: flex; flex-direction: column; gap: 0.5rem; }" +
+                ".seat-card-row { display: flex; gap: 0.5rem; align-items: center; }" +
+                ".seat-card-row input, .seat-card-row select { font-size: 0.85rem; padding: 0.45rem 0.65rem; }" +
+                ".concession-mini-label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: #34d399; font-weight: 600; cursor: pointer; white-space: nowrap; }" +
+                ".concession-mini-label input { width: 15px; height: 15px; cursor: pointer; }" +
+                "" +
                 "/* Concession & Fare Breakdown */" +
                 ".concession-box { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.1rem; }" +
                 ".concession-toggle-label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.95rem; color: #34d399; }" +
@@ -1763,8 +1994,9 @@ public class WebViews {
                 ".pass-barcode-area { border-top: 2px dashed #cbd5e1; padding-top: 1.5rem; text-align: center; }" +
                 ".barcode-lines { font-family: 'Courier New', monospace; font-size: 1.8rem; letter-spacing: 0.2em; color: #1e293b; }" +
                 ".barcode-num { font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 0.25rem; }" +
-                ".pass-copyright { font-size: 0.7rem; color: #94a3b8; margin-top: 0.5rem; }" +
-                ".pass-actions { padding: 1.25rem 2rem; background: #f1f5f9; display: flex; gap: 0.75rem; justify-content: center; }" +
+                ".pass-actions { padding: 1.25rem 2rem; background: #f1f5f9; display: flex; gap: 0.75rem; justify-content: center; border-top: 1px solid #e2e8f0; }" +
+                ".pass-actions .btn-outline, .pass-actions .btn-outline-dark, .btn-outline-dark { background: #ffffff !important; color: #1e293b !important; border: 1px solid #cbd5e1 !important; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }" +
+                ".pass-actions .btn-outline:hover, .pass-actions .btn-outline-dark:hover, .btn-outline-dark:hover { background: #e2e8f0 !important; color: #0f172a !important; border-color: #94a3b8 !important; }" +
                 "" +
                 "/* Print Styles */" +
                 "@media print {" +

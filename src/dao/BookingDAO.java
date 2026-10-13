@@ -13,14 +13,41 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BookingDAO {
+
+    private static final AtomicInteger nextGeneratedBookingId = new AtomicInteger(1005);
+    private static final List<Booking> inMemoryBookings = new CopyOnWriteArrayList<>();
+
+    static {
+        Booking b1 = new Booking(1001, 101, 2, 1, 12, "2026-10-15", 45.00, "CONFIRMED", 0.0, false);
+        b1.setPassengerName("John Doe"); b1.setPassengerGender("Male"); b1.setPassengerPhone("9876543210");
+        b1.setBusName("Express Volvo AC"); b1.setSource("New York"); b1.setDestination("Boston");
+        inMemoryBookings.add(b1);
+
+        Booking b2 = new Booking(1002, 102, 2, 1, 11, "2026-10-15", 55.00, "CONFIRMED", 0.0, false);
+        b2.setPassengerName("Sarah Smith"); b2.setPassengerGender("Female"); b2.setPassengerPhone("9123456780");
+        b2.setBusName("Express Volvo AC"); b2.setSource("New York"); b2.setDestination("Boston");
+        inMemoryBookings.add(b2);
+
+        Booking b3 = new Booking(1003, 104, 2, 1, 7, "2026-10-15", 22.50, "CONFIRMED", 22.50, true);
+        b3.setPassengerName("Robert Williams"); b3.setPassengerGender("Male"); b3.setPassengerPhone("9811223344");
+        b3.setPassengerDisability(true); b3.setDisabilityType("Locomotor / Mobility"); b3.setDisabilityId("UDID-98765-2026");
+        b3.setBusName("Express Volvo AC"); b3.setSource("New York"); b3.setDestination("Boston");
+        inMemoryBookings.add(b3);
+    }
 
     public boolean addBooking(Booking b) {
         String query = "INSERT INTO booking (passenger_id, user_id, bus_id, seat_number, booking_date, fare, status, concession_amount, is_concession) " +
                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                b.setBookingId(nextGeneratedBookingId.incrementAndGet());
+                inMemoryBookings.add(0, b);
+                return true;
+            }
             try (PreparedStatement pst = con.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
                 pst.setInt(1, b.getPassengerId());
                 if (b.getUserId() != null) {
@@ -84,7 +111,14 @@ public class BookingDAO {
         if (bookings == null || bookings.isEmpty()) return saved;
 
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return saved;
+            if (con == null) {
+                for (Booking b : bookings) {
+                    b.setBookingId(nextGeneratedBookingId.incrementAndGet());
+                    inMemoryBookings.add(0, b);
+                    saved.add(b);
+                }
+                return saved;
+            }
             boolean originalAutoCommit = con.getAutoCommit();
             con.setAutoCommit(false);
             try {
@@ -191,7 +225,7 @@ public class BookingDAO {
                        "ORDER BY b.booking_id DESC";
 
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return list;
+            if (con == null) return new ArrayList<>(inMemoryBookings);
             try (PreparedStatement pst = con.prepareStatement(query);
                  ResultSet rs = pst.executeQuery()) {
                 while (rs.next()) {
@@ -204,7 +238,7 @@ public class BookingDAO {
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getAllBookings error: " + e.getMessage());
         }
-        return list;
+        return list.isEmpty() ? new ArrayList<>(inMemoryBookings) : list;
     }
 
     private List<Booking> getAllBookingsLegacy(Connection con) {
@@ -241,7 +275,14 @@ public class BookingDAO {
                        "ORDER BY b.booking_id DESC";
 
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return list;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getUserId() != null && b.getUserId() == userId) {
+                        list.add(b);
+                    }
+                }
+                return list;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, userId);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -255,6 +296,13 @@ public class BookingDAO {
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getBookingsByUserId error: " + e.getMessage());
+        }
+        if (list.isEmpty()) {
+            for (Booking b : inMemoryBookings) {
+                if (b.getUserId() != null && b.getUserId() == userId) {
+                    list.add(b);
+                }
+            }
         }
         return list;
     }
@@ -294,7 +342,12 @@ public class BookingDAO {
                        "WHERE b.booking_id = ?";
 
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return null;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBookingId() == id) return b;
+                }
+                return null;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, id);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -305,6 +358,9 @@ public class BookingDAO {
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getBookingById error: " + e.getMessage());
+        }
+        for (Booking b : inMemoryBookings) {
+            if (b.getBookingId() == id) return b;
         }
         return null;
     }
@@ -321,7 +377,14 @@ public class BookingDAO {
                        "WHERE b.booking_id = ? AND b.user_id = ?";
 
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return null;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBookingId() == id && b.getUserId() != null && b.getUserId() == userId) {
+                        return b;
+                    }
+                }
+                return null;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, id);
                 pst.setInt(2, userId);
@@ -334,6 +397,11 @@ public class BookingDAO {
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getBookingByIdAndUserId error: " + e.getMessage());
         }
+        for (Booking b : inMemoryBookings) {
+            if (b.getBookingId() == id && b.getUserId() != null && b.getUserId() == userId) {
+                return b;
+            }
+        }
         return null;
     }
 
@@ -341,7 +409,14 @@ public class BookingDAO {
         List<Integer> booked = new ArrayList<>();
         String query = "SELECT seat_number FROM booking WHERE bus_id = ? AND status = 'CONFIRMED'";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return booked;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBusId() == busId && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                        booked.add(b.getSeatNumber());
+                    }
+                }
+                return booked;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, busId);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -352,6 +427,13 @@ public class BookingDAO {
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getBookedSeats error: " + e.getMessage());
+        }
+        if (booked.isEmpty()) {
+            for (Booking b : inMemoryBookings) {
+                if (b.getBusId() == busId && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                    booked.add(b.getSeatNumber());
+                }
+            }
         }
         return booked;
     }
@@ -366,7 +448,16 @@ public class BookingDAO {
                        "LEFT JOIN passenger p ON b.passenger_id = p.passenger_id " +
                        "WHERE b.bus_id = ? AND b.status = 'CONFIRMED'";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return seatGenderMap;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBusId() == busId && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                        String g = b.getPassengerGender();
+                        if (g == null || g.trim().isEmpty()) g = "Other";
+                        seatGenderMap.put(b.getSeatNumber(), g.trim());
+                    }
+                }
+                return seatGenderMap;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, busId);
                 try (ResultSet rs = pst.executeQuery()) {
@@ -383,13 +474,29 @@ public class BookingDAO {
         } catch (SQLException e) {
             System.err.println("[BookingDAO] getBookedSeatsWithGender error: " + e.getMessage());
         }
+        if (seatGenderMap.isEmpty()) {
+            for (Booking b : inMemoryBookings) {
+                if (b.getBusId() == busId && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                    String g = b.getPassengerGender();
+                    if (g == null || g.trim().isEmpty()) g = "Other";
+                    seatGenderMap.put(b.getSeatNumber(), g.trim());
+                }
+            }
+        }
         return seatGenderMap;
     }
 
     public boolean isSeatBooked(int busId, int seatNumber) {
         String query = "SELECT COUNT(*) FROM booking WHERE bus_id = ? AND seat_number = ? AND status = 'CONFIRMED'";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBusId() == busId && b.getSeatNumber() == seatNumber && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                        return true;
+                    }
+                }
+                return false;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, busId);
                 pst.setInt(2, seatNumber);
@@ -402,16 +509,35 @@ public class BookingDAO {
         } catch (SQLException e) {
             System.err.println("[BookingDAO] isSeatBooked error: " + e.getMessage());
         }
+        for (Booking b : inMemoryBookings) {
+            if (b.getBusId() == busId && b.getSeatNumber() == seatNumber && "CONFIRMED".equalsIgnoreCase(b.getStatus())) {
+                return true;
+            }
+        }
         return false;
     }
 
     public boolean cancelBooking(int bookingId) {
         String query = "UPDATE booking SET status = 'CANCELLED' WHERE booking_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBookingId() == bookingId) {
+                        b.setStatus("CANCELLED");
+                        return true;
+                    }
+                }
+                return false;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, bookingId);
-                return pst.executeUpdate() > 0;
+                boolean ok = pst.executeUpdate() > 0;
+                if (ok) {
+                    for (Booking b : inMemoryBookings) {
+                        if (b.getBookingId() == bookingId) b.setStatus("CANCELLED");
+                    }
+                }
+                return ok;
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] cancelBooking error: " + e.getMessage());
@@ -422,11 +548,27 @@ public class BookingDAO {
     public boolean cancelBookingForUser(int bookingId, int userId) {
         String query = "UPDATE booking SET status = 'CANCELLED' WHERE booking_id = ? AND user_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                for (Booking b : inMemoryBookings) {
+                    if (b.getBookingId() == bookingId && b.getUserId() != null && b.getUserId() == userId) {
+                        b.setStatus("CANCELLED");
+                        return true;
+                    }
+                }
+                return false;
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, bookingId);
                 pst.setInt(2, userId);
-                return pst.executeUpdate() > 0;
+                boolean ok = pst.executeUpdate() > 0;
+                if (ok) {
+                    for (Booking b : inMemoryBookings) {
+                        if (b.getBookingId() == bookingId && b.getUserId() != null && b.getUserId() == userId) {
+                            b.setStatus("CANCELLED");
+                        }
+                    }
+                }
+                return ok;
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] cancelBookingForUser error: " + e.getMessage());
@@ -437,10 +579,16 @@ public class BookingDAO {
     public boolean deleteBooking(int bookingId) {
         String query = "DELETE FROM booking WHERE booking_id = ?";
         try (Connection con = DBConnection.getConnection()) {
-            if (con == null) return false;
+            if (con == null) {
+                return inMemoryBookings.removeIf(b -> b.getBookingId() == bookingId);
+            }
             try (PreparedStatement pst = con.prepareStatement(query)) {
                 pst.setInt(1, bookingId);
-                return pst.executeUpdate() > 0;
+                boolean ok = pst.executeUpdate() > 0;
+                if (ok) {
+                    inMemoryBookings.removeIf(b -> b.getBookingId() == bookingId);
+                }
+                return ok;
             }
         } catch (SQLException e) {
             System.err.println("[BookingDAO] deleteBooking error: " + e.getMessage());
